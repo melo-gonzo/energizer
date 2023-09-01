@@ -4,19 +4,29 @@ import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.callbacks.progress.base import ProgressBarBase
-from pytorch_lightning.loops import EvaluationLoop, FitLoop, PredictionLoop, TrainingEpochLoop
-from pytorch_lightning.trainer.connectors.data_connector import DataConnector as DataConnector_pl
+from pytorch_lightning.loops import (
+    EvaluationLoop,
+    FitLoop,
+    PredictionLoop,
+    TrainingEpochLoop,
+)
+from pytorch_lightning.trainer.connectors.data_connector import (
+    DataConnector as DataConnector_pl,
+)
 from pytorch_lightning.trainer.connectors.data_connector import _DataLoaderSource
 from pytorch_lightning.trainer.states import TrainerFn, TrainerStatus
-from pytorch_lightning.trainer.trainer import _determine_batch_limits
 from pytorch_lightning.utilities import LightningEnum
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.seed import isolate_rng
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from pytorch_lightning.trainer import call, setup
 
 from energizer.callbacks.tqdm_progress import TQDMProgressBarActiveLearning
 from energizer.data.datamodule import ActiveDataModule
-from energizer.loops.active_learning_loop import ActiveLearningLoop, LabellingIterOutputs
+from energizer.loops.active_learning_loop import (
+    ActiveLearningLoop,
+    LabellingIterOutputs,
+)
 from energizer.query_strategies.base import BaseQueryStrategy
 from energizer.query_strategies.hooks import CallBackActiveLearningHooks
 from energizer.utilities.logger import logger
@@ -25,6 +35,16 @@ from energizer.utilities.logger import logger
 Preliminary components needed to add support for `pool_dataloader`
 and pool-related hooks
 """
+
+
+def _determine_batch_limits(batches: Union[int, float], name: str) -> Union[int, float]:
+    if 0 <= batches <= 1:
+        return batches
+    if batches > 1 and batches % 1.0 == 0:
+        return int(batches)
+    raise MisconfigurationException(
+        f"You have passed invalid value {batches} for {name}, it has to be in [0.0, 1.0] or an int."
+    )
 
 
 class PoolRunningStage(LightningEnum):
@@ -40,26 +60,34 @@ class PoolRunningStage(LightningEnum):
 
 
 class DataConnector(DataConnector_pl):
-    def __init__(self, trainer: "pl.Trainer", multiple_trainloader_mode: str = "max_size_cycle"):
+    def __init__(
+        self, trainer: "pl.Trainer", multiple_trainloader_mode: str = "max_size_cycle"
+    ):
         super().__init__(trainer, multiple_trainloader_mode)
         self._pool_dataloader_source = _DataLoaderSource(None, "")
 
     def attach_datamodule(
-        self, model: "pl.LightningModule", datamodule: Optional["pl.LightningDataModule"] = None
+        self,
+        model: "pl.LightningModule",
+        datamodule: Optional["pl.LightningDataModule"] = None,
     ) -> None:
         # do the usual
         super().attach_datamodule(model, datamodule)
 
         # and attach the pool dataloader if the user has passed an ActiveDataModule
         if isinstance(datamodule, ActiveDataModule):
-            self._pool_dataloader_source = _DataLoaderSource(datamodule, "pool_dataloader")
+            self._pool_dataloader_source = _DataLoaderSource(
+                datamodule, "pool_dataloader"
+            )
 
 
 def patch_callbacks(callbacks: List[Callback]) -> List[Callback]:
     """Adds `pool`-related hooks to callbacks."""
 
     def add_pool_hooks(callback: Callback) -> Callback:
-        hook_names = [m for m in dir(CallBackActiveLearningHooks) if not m.startswith("_")]
+        hook_names = [
+            m for m in dir(CallBackActiveLearningHooks) if not m.startswith("_")
+        ]
         for name in hook_names:
             if not hasattr(callback, name):
                 setattr(callback, name, getattr(CallBackActiveLearningHooks, name))
@@ -68,7 +96,9 @@ def patch_callbacks(callbacks: List[Callback]) -> List[Callback]:
     new_callbacks = []
     for c in callbacks:
         if isinstance(c, ProgressBarBase):
-            prog_bar = TQDMProgressBarActiveLearning(process_position=c.process_position, refresh_rate=c.refresh_rate)
+            prog_bar = TQDMProgressBarActiveLearning(
+                process_position=c.process_position, refresh_rate=c.refresh_rate
+            )
             prog_bar = add_pool_hooks(prog_bar)
             new_callbacks.append(prog_bar)
         else:
@@ -94,7 +124,6 @@ class Trainer(pl.Trainer):
         limit_pool_batches: Optional[Union[int, float]] = None,
         **kwargs,
     ) -> None:
-
         # initialize lightning trainer
         super().__init__(**kwargs)
 
@@ -111,7 +140,9 @@ class Trainer(pl.Trainer):
         self.active_fitting: bool = False
 
         # overwrite data_connector in trainer
-        self._data_connector = DataConnector(self, self._data_connector.multiple_trainloader_mode)
+        self._data_connector = DataConnector(
+            self, self._data_connector.multiple_trainloader_mode
+        )
         self._data_connector.on_trainer_init(
             val_check_interval=self.val_check_interval,
             check_val_every_n_epoch=self.check_val_every_n_epoch,
@@ -119,8 +150,12 @@ class Trainer(pl.Trainer):
         )
 
         # fit after each labelling session
-        fit_loop = FitLoop(min_epochs=self.fit_loop.min_epochs, max_epochs=self.fit_loop.max_epochs)
-        training_epoch_loop = TrainingEpochLoop(min_steps=self.fit_loop.min_steps, max_steps=self.fit_loop.max_steps)
+        fit_loop = FitLoop(
+            min_epochs=self.fit_loop.min_epochs, max_epochs=self.fit_loop.max_epochs
+        )
+        training_epoch_loop = TrainingEpochLoop(
+            min_steps=self.fit_loop.min_steps, max_steps=self.fit_loop.max_steps
+        )
         fit_loop.connect(epoch_loop=training_epoch_loop)
 
         # test after labelling and fitting
@@ -134,7 +169,9 @@ class Trainer(pl.Trainer):
             min_labelling_epochs=self.min_labelling_epochs,
             max_labelling_epochs=self.max_labelling_epochs,
         )
-        active_learning_loop.connect(pool_loop=None, fit_loop=fit_loop, test_loop=test_loop)
+        active_learning_loop.connect(
+            pool_loop=None, fit_loop=fit_loop, test_loop=test_loop
+        )
         self.active_learning_loop = active_learning_loop  # also attaches the trainer
 
         # this needed to be patched
@@ -179,7 +216,9 @@ class Trainer(pl.Trainer):
     def active_fit(
         self,
         model: BaseQueryStrategy,
-        train_dataloaders: Optional[Union[TRAIN_DATALOADERS, "pl.LightningDataModule"]] = None,
+        train_dataloaders: Optional[
+            Union[TRAIN_DATALOADERS, "pl.LightningDataModule"]
+        ] = None,
         val_dataloaders: Optional[EVAL_DATALOADERS] = None,
         test_dataloaders: Optional[EVAL_DATALOADERS] = None,
         datamodule: Optional["pl.LightningDataModule"] = None,
@@ -197,7 +236,8 @@ class Trainer(pl.Trainer):
         """
         # self.strategy.model = model
 
-        return self._call_and_handle_interrupt(
+        return call._call_and_handle_interrupt(
+            self,
             self._active_fit_impl,
             self.query_strategy,
             train_dataloaders,
@@ -210,13 +250,14 @@ class Trainer(pl.Trainer):
     def _active_fit_impl(
         self,
         model: BaseQueryStrategy,
-        train_dataloaders: Optional[Union[TRAIN_DATALOADERS, "pl.LightningDataModule"]] = None,
+        train_dataloaders: Optional[
+            Union[TRAIN_DATALOADERS, "pl.LightningDataModule"]
+        ] = None,
         val_dataloaders: Optional[EVAL_DATALOADERS] = None,
         test_dataloaders: Optional[EVAL_DATALOADERS] = None,
         datamodule: Optional["pl.LightningDataModule"] = None,
         ckpt_path: Optional[str] = None,
     ) -> None:
-
         """
         Check the inputs
         """
@@ -230,7 +271,11 @@ class Trainer(pl.Trainer):
         if isinstance(train_dataloaders, pl.LightningDataModule):
             datamodule = train_dataloaders
             train_dataloaders = None
-        is_dataloaders = train_dataloaders is not None or val_dataloaders is not None or test_dataloaders is not None
+        is_dataloaders = (
+            train_dataloaders is not None
+            or val_dataloaders is not None
+            or test_dataloaders is not None
+        )
         is_datamodule = datamodule is not None
 
         # if you supply a datamodule you can't supply train_dataloader or val_dataloaders
@@ -241,7 +286,9 @@ class Trainer(pl.Trainer):
             )
 
         # cast to ActiveDataModule
-        elif is_dataloaders or (is_datamodule and not isinstance(datamodule, ActiveDataModule)):
+        elif is_dataloaders or (
+            is_datamodule and not isinstance(datamodule, ActiveDataModule)
+        ):
             datamodule = ActiveDataModule(
                 train_dataloader=train_dataloaders,
                 val_dataloaders=val_dataloaders,
@@ -250,7 +297,10 @@ class Trainer(pl.Trainer):
             )
 
         # check if can run testing
-        if self.test_after_labelling and getattr(datamodule, "test_dataloader", None) is None:
+        if (
+            self.test_after_labelling
+            and getattr(datamodule, "test_dataloader", None) is None
+        ):
             raise MisconfigurationException(
                 "You specified `test_after_labelling=True` but no test_dataloader was provided."
             )
@@ -279,8 +329,11 @@ class Trainer(pl.Trainer):
 
         # TODO: ckpt_path only in v2.0
         ckpt_path = ckpt_path or self.resume_from_checkpoint
-        self._ckpt_path = self.__set_ckpt_path(
-            ckpt_path, model_provided=True, model_connected=self.lightning_module is not None
+        self._ckpt_path = self._checkpoint_connector._set_ckpt_path(
+            self.state.fn,
+            ckpt_path,  # type: ignore[arg-type]
+            model_provided=True,
+            model_connected=self.lightning_module is not None,
         )
 
         """
@@ -302,7 +355,9 @@ class Trainer(pl.Trainer):
 
         return results
 
-    def reset_pool_dataloader(self, model: Optional["pl.LightningModule"] = None) -> None:
+    def reset_pool_dataloader(
+        self, model: Optional["pl.LightningModule"] = None
+    ) -> None:
         """Resets the pool dataloader and determines the number of batches.
 
         This method is exactly the same as `trainer.reset_test_dataloader`.
@@ -316,7 +371,10 @@ class Trainer(pl.Trainer):
         enable_pool = self.limit_pool_batches > 0
         # if has_step and enable_pool:
         if enable_pool:
-            self.num_pool_batches, self.pool_dataloaders = self._data_connector._reset_eval_dataloader(
+            (
+                self.num_pool_batches,
+                self.pool_dataloaders,
+            ) = self._data_connector._reset_eval_dataloader(
                 PoolRunningStage.POOL, model=pl_module
             )
 
@@ -331,8 +389,12 @@ class Trainer(pl.Trainer):
             self.limit_pool_batches = num_batches
             self.fit_loop.max_steps = num_batches
             self.fit_loop.max_epochs = 1
-
-        self.limit_pool_batches = _determine_batch_limits(self.limit_pool_batches, "limit_pool_batches")
+        if self.limit_pool_batches is not None:
+            self.limit_pool_batches = _determine_batch_limits(
+                self.limit_pool_batches, "limit_pool_batches"
+            )
+        else:
+            self.limit_pool_batches = 0
 
     def _extend_setup_on_init(self) -> None:
         """This method extends the original `trainer._setup_on_init` method."""
@@ -419,12 +481,13 @@ class Trainer(pl.Trainer):
     def is_last_batch(self) -> bool:
         """Whether trainer is executing the last batch."""
         if self.active_fitting:
-            return self.active_learning_loop.fit_loop.epoch_loop.batch_progress.is_last_batch
+            return (
+                self.active_learning_loop.fit_loop.epoch_loop.batch_progress.is_last_batch
+            )
         return self.fit_loop.epoch_loop.batch_progress.is_last_batch
 
     @property
     def _evaluation_loop(self) -> EvaluationLoop:
-
         if self.state.fn in (TrainerFn.FITTING, TrainerFn.TUNING):
             return (
                 self.fit_loop.epoch_loop.val_loop
@@ -440,15 +503,23 @@ class Trainer(pl.Trainer):
             )
 
         if self.state.fn == TrainerFn.TESTING:
-            return self.test_loop if not self.active_fitting else self.active_learning_loop.test_loop
+            return (
+                self.test_loop
+                if not self.active_fitting
+                else self.active_learning_loop.test_loop
+            )
 
-        raise RuntimeError("The `Trainer._evaluation_loop` property isn't defined. Accessed outside of scope")
+        raise RuntimeError(
+            "The `Trainer._evaluation_loop` property isn't defined. Accessed outside of scope"
+        )
 
     @property
     def _active_loop(self) -> Optional[Union[FitLoop, EvaluationLoop, PredictionLoop]]:
         """Returns the currently active loop based on the `Trainer`'s state."""
         if self.training:
-            return self.fit_loop if not self.active_fitting else self.active_learning_loop
+            return (
+                self.fit_loop if not self.active_fitting else self.active_learning_loop
+            )
 
         if self.sanity_checking or self.evaluating:
             # this resolves the `active_fitting` condition internally
@@ -465,7 +536,9 @@ class Trainer(pl.Trainer):
         else:
             # self.strategy.model = self.query_strategy.model
             self.strategy.connect(self.query_strategy.model)
-            logger.debug(f"Using underlying `{self.lightning_module.__class__.__name__}`")
+            logger.debug(
+                f"Using underlying `{self.lightning_module.__class__.__name__}`"
+            )
         self.strategy.model_to_device()
 
     @property
