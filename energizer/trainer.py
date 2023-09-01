@@ -228,7 +228,6 @@ class Trainer(pl.Trainer):
         self.query_strategy = model
         self.query_strategy.query_size = self.query_size
         self.active_learning_loop.pool_loop = self.query_strategy.pool_loop
-
         """
         NOTE: this creates the `self.lightning_module` attribute on the trainer
         it is set in the `fit` method, but we do not set it here and let the
