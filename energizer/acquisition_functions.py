@@ -27,6 +27,7 @@ def entropy(logits: Tensor) -> Tensor:
     Returns:
         The Shannon's entropy, i.e. a vector of dimensions `(B: batch_size,)`.
     """
+    logits = next(iter(logits.values()))
     probs = softmax(logits, dim=-1)
     return entr(probs).sum(dim=-1)  # remember: you need to sum across classes
 
@@ -183,6 +184,7 @@ def least_confidence(logits: Tensor) -> Tensor:
 
     $$\arg \max_{x} \; 1 - \mathrm{E}_{p(\theta| D)} p(y_{max}|x, \theta)$$
     """
+    logits = next(iter(logits.values()))
     return 1.0 - confidence(logits, k=1).flatten()
 
 
@@ -234,6 +236,7 @@ def margin_confidence(logits: Tensor) -> Tensor:
 
     $$\arg\min_{x} \mathrm{E}_{p(\theta| D)} P(y_1|x, \theta) - \mathrm{E}_{p(\theta| D)} P(y_2|x, \theta)$$
     """
+    logits = next(iter(logits.values()))
     confidence_top2 = confidence(logits, k=2)
     # we want the instances with the smallest gap, so we need to negate
     return -(confidence_top2[:, 0] - confidence_top2[:, 1]).flatten()

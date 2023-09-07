@@ -138,6 +138,7 @@ class MCAccumulatorStrategy(AccumulatorStrategy):
         """
         out = []
         for _ in range(self.num_inference_iters):
-            out.append(self.model.forward(*args, **kwargs))  # type: ignore
+            model_out = self.model.forward(*args, **kwargs)
+            out.append(next(iter(model_out.values())))  # type: ignore
         # expects shape [num_samples, num_classes, num_iterations]
         return torch.stack(out).permute((1, 2, 0))

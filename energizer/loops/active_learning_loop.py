@@ -190,7 +190,7 @@ class ActiveLearningLoop(Loop):
             self._reset_evaluating_pool()
             outputs.pool_outputs, indices = self.pool_loop.run()
             outputs.indices = indices
-            logger.info(f"Queried {len(indices)} instance")
+            logger.info(f"Queried {len(indices)} instances")
             self.label_datamodule(indices)
 
         self._outputs.append(outputs)
