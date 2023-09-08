@@ -68,6 +68,7 @@ class ActiveLearningLoop(Loop):
         self.total_budget = total_budget
         self.min_labelling_epochs = min_labelling_epochs
         self.max_labelling_epochs = max_labelling_epochs
+        self.all_update_epochs = 0
 
         # labelling iterations tracker
         self.epoch_progress = Progress()
@@ -170,6 +171,8 @@ class ActiveLearningLoop(Loop):
         """Runs the active learning loop: training, testing, and pool evaluation."""
         # TODO: add `with self.trainer.profiler.profile("<some_step>"):`
 
+        self.trainer.logger.log_metrics({'all_update_epochs':self.all_update_epochs})
+
         outputs = LabellingIterOutputs(
             labelling_iter=self.epoch_progress.current.completed,
             data_stats=self.trainer.datamodule.get_statistics(),
@@ -194,6 +197,7 @@ class ActiveLearningLoop(Loop):
             self.label_datamodule(indices)
 
         self._outputs.append(outputs)
+        self.all_update_epochs+=1
 
     def on_advance_end(self) -> None:
         """Used to restore the original weights and the optimizers and schedulers states."""
