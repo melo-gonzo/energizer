@@ -27,6 +27,7 @@ class BaseQueryStrategy(LightningModule, ModelHooks, metaclass=PostInitCaller):
     def __init__(self, model: LightningModule) -> None:
         super().__init__()
         self.model = deepcopy(model)
+        self.queries_made: int = 0
 
     def __post_init__(self) -> None:
         raise NotImplementedError("You need to attach a pool loop.")
@@ -62,11 +63,17 @@ class BaseQueryStrategy(LightningModule, ModelHooks, metaclass=PostInitCaller):
 
     def get_inputs_from_batch(self, batch: BATCH_TYPE) -> MODEL_INPUT:
         return batch
+    
+    def pool_epoch_end(self, *args, **kwargs) -> Optional[Any]:
+        self.queries_made += 1
 
 
 class NoAccumulatorStrategy(BaseQueryStrategy):
     def __post_init__(self) -> None:
         self.pool_loop = PoolNoEvaluationLoop()
+
+    def pool_epoch_end(self, *args, **kwargs) -> Optional[Any]:
+        self.queries_made += 1
 
 
 class AccumulatorStrategy(BaseQueryStrategy):
@@ -95,7 +102,7 @@ class AccumulatorStrategy(BaseQueryStrategy):
         pass
 
     def pool_epoch_end(self, *args, **kwargs) -> Optional[Any]:
-        pass
+        self.queries_made += 1
 
 
 class MCAccumulatorStrategy(AccumulatorStrategy):

@@ -24,7 +24,7 @@ NoAccumulatorStrategy's
 class RandomStrategy(NoAccumulatorStrategy):
     def query(self) -> List[int]:
         pool_size = self.trainer.datamodule.pool_size
-        return np.random.randint(low=0, high=pool_size, size=self.query_size).tolist()
+        return np.random.choice(pool_size, size=self.query_size, replace=False).tolist()
 
 
 """
@@ -35,19 +35,28 @@ AccumulatorStrategy's
 class EntropyStrategy(AccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        return entropy(logits)
+        if self.queries_made == 0:
+            return Tensor(np.random.rand(len(next(iter(logits.values())))))
+        else:
+            return entropy(logits)
 
 
 class LeastConfidenceStrategy(AccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        return least_confidence(logits)
+        if self.queries_made == 0:
+            return Tensor(np.random.rand(len(next(iter(logits.values())))))
+        else:
+            return least_confidence(logits)
 
 
 class MarginStrategy(AccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        return margin_confidence(logits)
+        if self.queries_made == 0:
+            return Tensor(np.random.rand(len(next(iter(logits.values())))))
+        else:
+            return margin_confidence(logits)
 
 
 """
@@ -58,28 +67,43 @@ MCAccumulatorStrategy's
 class ExpectedEntropyStrategy(MCAccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        return expected_entropy(logits)
+        if self.queries_made == 0:
+            return Tensor(np.random.rand(len(logits)))
+        else:
+            return expected_entropy(logits)
 
 
 class PredictiveEntropyStrategy(MCAccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        return predictive_entropy(logits)
+        if self.queries_made == 0:
+            return Tensor(np.random.rand(len(logits)))
+        else:
+            return predictive_entropy(logits)
 
 
 class ExpectedLeastConfidenceStrategy(MCAccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        return expected_least_confidence(logits)
+        if self.queries_made == 0:
+            return Tensor(np.random.rand(len(logits)))
+        else:
+            return expected_least_confidence(logits)
 
 
 class ExpectedMarginStrategy(MCAccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        return expected_margin_confidence(logits)
+        if self.queries_made == 0:
+            return Tensor(np.random.rand(len(logits)))
+        else:
+            return expected_margin_confidence(logits)
 
 
 class BALDStrategy(MCAccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        return bald(logits)
+        if self.queries_made == 0:
+            return Tensor(np.random.rand(len(logits)))
+        else:
+            return bald(logits)
