@@ -109,7 +109,7 @@ class ActiveLearningLoop(Loop):
 
         # stop if no more data to label are available
         stop_no_data_to_label = not (
-            self.trainer.datamodule.has_unlabelled_data and self.trainer.query_size <= self.trainer.datamodule.pool_size
+            self.trainer.datamodule.has_unlabelled_data # and self.trainer.query_size <= self.trainer.datamodule.pool_size
         )
 
         # stop if total budget is labelled

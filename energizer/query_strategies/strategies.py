@@ -24,7 +24,8 @@ NoAccumulatorStrategy's
 class RandomStrategy(NoAccumulatorStrategy):
     def query(self) -> List[int]:
         pool_size = self.trainer.datamodule.pool_size
-        return np.random.choice(pool_size, size=self.query_size, replace=False).tolist()
+        size = np.min([pool_size, self.query_size])
+        return np.random.choice(pool_size, size=size, replace=False).tolist()
 
 
 """
@@ -35,8 +36,9 @@ AccumulatorStrategy's
 class EntropyStrategy(AccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
+        values = next(iter(logits.values()))
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(next(iter(logits.values())))))
+            return Tensor(np.random.rand(len(values))).to(values.device)
         else:
             return entropy(logits)
 
@@ -44,8 +46,9 @@ class EntropyStrategy(AccumulatorStrategy):
 class LeastConfidenceStrategy(AccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
+        values = next(iter(logits.values()))
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(next(iter(logits.values())))))
+            return Tensor(np.random.rand(len(values))).to(values.device)
         else:
             return least_confidence(logits)
 
@@ -53,8 +56,9 @@ class LeastConfidenceStrategy(AccumulatorStrategy):
 class MarginStrategy(AccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
+        values = next(iter(logits.values()))
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(next(iter(logits.values())))))
+            return Tensor(np.random.rand(len(values))).to(values.device)
         else:
             return margin_confidence(logits)
 
@@ -67,8 +71,9 @@ MCAccumulatorStrategy's
 class ExpectedEntropyStrategy(MCAccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
+        values = logits
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(logits)))
+            return Tensor(np.random.rand(len(values))).to(values.device)
         else:
             return expected_entropy(logits)
 
@@ -76,8 +81,9 @@ class ExpectedEntropyStrategy(MCAccumulatorStrategy):
 class PredictiveEntropyStrategy(MCAccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
+        values = logits
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(logits)))
+            return Tensor(np.random.rand(len(values))).to(values.device)
         else:
             return predictive_entropy(logits)
 
@@ -85,8 +91,9 @@ class PredictiveEntropyStrategy(MCAccumulatorStrategy):
 class ExpectedLeastConfidenceStrategy(MCAccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
+        values = logits
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(logits)))
+            return Tensor(np.random.rand(len(values))).to(values.device)
         else:
             return expected_least_confidence(logits)
 
@@ -94,8 +101,9 @@ class ExpectedLeastConfidenceStrategy(MCAccumulatorStrategy):
 class ExpectedMarginStrategy(MCAccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
+        values = logits
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(logits)))
+            return Tensor(np.random.rand(len(values))).to(values.device)
         else:
             return expected_margin_confidence(logits)
 
@@ -103,7 +111,8 @@ class ExpectedMarginStrategy(MCAccumulatorStrategy):
 class BALDStrategy(MCAccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
+        values = logits
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(logits)))
+            return Tensor(np.random.rand(len(values))).to(values.device)
         else:
             return bald(logits)

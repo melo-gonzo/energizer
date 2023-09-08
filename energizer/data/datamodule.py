@@ -227,10 +227,11 @@ class ActiveDataModule(LightningDataModule):
         )
 
         pool_idx = [pool_idx] if isinstance(pool_idx, int) else pool_idx
+        pool_idx_ = [_ for _ in pool_idx if _>0]
 
-        if len(np.unique(pool_idx)) > len(self.pool_fold):
+        if len(np.unique(pool_idx_)) > len(self.pool_fold):
             raise ValueError(
-                f"Pool has {len(self.pool_fold)} instances, cannot label {len(np.unique(pool_idx))} instances."
+                f"Pool has {len(self.pool_fold)} instances, cannot label {len(np.unique(pool_idx_))} instances."
             )
         if max(pool_idx) > len(self.pool_fold):
             raise ValueError(f"Cannot label instance {max(pool_idx)} for pool dataset of size {len(self.pool_fold)}.")
