@@ -15,7 +15,7 @@ from energizer.acquisition_functions import (
 )
 from energizer.query_strategies.base import AccumulatorStrategy, MCAccumulatorStrategy, NoAccumulatorStrategy
 from energizer.utilities.types import MODEL_INPUT
-
+from energizer.utils import track_it
 """
 NoAccumulatorStrategy's
 """
@@ -34,11 +34,11 @@ AccumulatorStrategy's
 
 
 class EntropyStrategy(AccumulatorStrategy):
+    @track_it()
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        values = next(iter(logits.values()))
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(values))).to(values.device)
+            return Tensor(np.random.rand(self.batch_size)).to(device=self.trainer.lightning_module.device)
         else:
             return entropy(logits)
 
@@ -46,9 +46,8 @@ class EntropyStrategy(AccumulatorStrategy):
 class LeastConfidenceStrategy(AccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        values = next(iter(logits.values()))
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(values))).to(values.device)
+            return Tensor(np.random.rand(self.batch_size)).to(device=self.trainer.lightning_module.device)
         else:
             return least_confidence(logits)
 
@@ -56,9 +55,8 @@ class LeastConfidenceStrategy(AccumulatorStrategy):
 class MarginStrategy(AccumulatorStrategy):
     def pool_step(self, batch: MODEL_INPUT, batch_idx: int, *args, **kwargs) -> Tensor:
         logits = self(batch)
-        values = next(iter(logits.values()))
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(values))).to(values.device)
+            return Tensor(np.random.rand(self.batch_size)).to(device=self.trainer.lightning_module.device)
         else:
             return margin_confidence(logits)
 
@@ -73,7 +71,7 @@ class ExpectedEntropyStrategy(MCAccumulatorStrategy):
         logits = self(batch)
         values = logits
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(values))).to(values.device)
+            return Tensor(np.random.rand(self.batch_size)).to(device=self.trainer.lightning_module.device)
         else:
             return expected_entropy(logits)
 
@@ -83,7 +81,7 @@ class PredictiveEntropyStrategy(MCAccumulatorStrategy):
         logits = self(batch)
         values = logits
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(values))).to(values.device)
+            return Tensor(np.random.rand(self.batch_size)).to(device=self.trainer.lightning_module.device)
         else:
             return predictive_entropy(logits)
 
@@ -93,7 +91,7 @@ class ExpectedLeastConfidenceStrategy(MCAccumulatorStrategy):
         logits = self(batch)
         values = logits
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(values))).to(values.device)
+            return Tensor(np.random.rand(self.batch_size)).to(device=self.trainer.lightning_module.device)
         else:
             return expected_least_confidence(logits)
 
@@ -103,7 +101,7 @@ class ExpectedMarginStrategy(MCAccumulatorStrategy):
         logits = self(batch)
         values = logits
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(values))).to(values.device)
+            return Tensor(np.random.rand(self.batch_size)).to(device=self.trainer.lightning_module.device)
         else:
             return expected_margin_confidence(logits)
 
@@ -113,6 +111,6 @@ class BALDStrategy(MCAccumulatorStrategy):
         logits = self(batch)
         values = logits
         if self.queries_made == 0:
-            return Tensor(np.random.rand(len(values))).to(values.device)
+            return Tensor(np.random.rand(self.batch_size)).to(device=self.trainer.lightning_module.device)
         else:
             return bald(logits)
