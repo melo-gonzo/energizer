@@ -143,9 +143,9 @@ class MCAccumulatorStrategy(AccumulatorStrategy):
         Returns:
             A tensor of dimension `(B: batch_size, C: num_classes, S: num_samples)`.
         """
-        out = []
-        for _ in range(self.num_inference_iters):
+        out = [None]*self.num_inference_iters
+        for idx, _ in enumerate(range(self.num_inference_iters)):
             model_out = self.model.forward(*args, **kwargs)
-            out.append(next(iter(model_out.values())))  # type: ignore
+            out[idx] = next(iter(model_out.values()))  # type: ignore
         # expects shape [num_samples, num_classes, num_iterations]
         return torch.stack(out).permute((1, 2, 0))
