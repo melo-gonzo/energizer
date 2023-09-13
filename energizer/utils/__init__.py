@@ -1,1 +1,1 @@
-from energizer.utils.timing_decor import track_it
+from energizer.utils.timing_decor import time_it

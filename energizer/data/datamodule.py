@@ -228,7 +228,7 @@ class ActiveDataModule(LightningDataModule):
 
         pool_idx = [pool_idx] if isinstance(pool_idx, int) else pool_idx
         # pool_idx = list(np.array(pool_idx).flatten())
-        pool_idx_ = [_ for _ in pool_idx if _>0]
+        pool_idx_ = [_ for _ in pool_idx if _>=0]
 
         if len(np.unique(pool_idx_)) > len(self.pool_fold):
             raise ValueError(
